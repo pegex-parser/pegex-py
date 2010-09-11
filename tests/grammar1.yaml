@@ -1,0 +1,16 @@
+---
+_FIRST_RULE: greeting
+greeting:
+  +all:
+  - +rule: nicety
+  - +re: \s
+  - +rule: name
+  - +rule: punctuation
+    <: '?'
+  - +re: \r?\n
+name:
+  +re: '[A-Z]\w*'
+nicety:
+  +re: (Hello|O HAI|Hey)
+punctuation:
+  +re: '[\.,!]'

@@ -5,25 +5,16 @@ Pegex - PEG/Regex Parser framework.
 __version__ = '0.0.1'
 
 class Pegex():
-    def __init__(self, receiver=None, top=None):
-        if receiver:
-            self.receiver = receiver
-        else:
-            import pegex.ast
-            self.receiver = pegex.ast()
-        self.top = top
-        self.grammar = self.init_grammar()
+    def __init__(self, grammar):
+        self.grammar = grammar
 
-    def init_grammar(self):
-        pass        
+    def pegex(grammar_text):
+        import pegex.grammar
+        return Pegex(pegex.grammar.Grammar(grammar_text=grammar_text))
 
-    def parse(self, input, top=None):
-        self.position = 0
-        self.input = input
-        self.match(self.top_rule(top))
-        if self.position < len(self.input):
-            pass
-        if self.receiver.__dict__.get('data'):
-            return self.receiver.__dict__.get('data')
+    def compile(self):
+        self.grammar.compile()
+        return self
 
-    
+    def parse(self, input, start_rule=None):
+        return self.grammar.parse(input, start_rule)

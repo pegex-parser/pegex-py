@@ -3,6 +3,7 @@ from package.unittest import *
 class TestImport(TestCase):
     def test_import(self):
         import pegex
+        import pegex.grammar
 
         self.assertTrue(True, 'pegex modules imported cleanly')
 
