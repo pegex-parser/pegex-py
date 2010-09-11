@@ -4,19 +4,14 @@ pegex.grammar - Runtime base class for parsing grammars
 
 import re
 
-def XXX(o):
-    import yaml
-    print yaml.dump(o)
-    exit()
-
 class Grammar():
-    def __init__(self, grammar_text=None, receiver=None):
+    def __init__(self, grammar_text=None, receiver=None, debug=False):
         self.grammar = None
         self.grammar_text = grammar_text
         self.grammar_tree = None
         # self.receiver = 'require Pegex::AST; Pegex::AST->new()';
         self.receiver = receiver
-        self.debug = 1
+        self.debug = debug
         self.indent = 0
 
     def parse(self, input, start_rule=None):
@@ -174,7 +169,7 @@ class Grammar():
     def callback(self, method):
         func = getattr(self.receiver, method, None)
         if func:
-            func(self, method, self.match_groups)
+            func(self.match_groups)
 
     def throw_error(self, msg):
         line = self.input[0:self.position].count("\n") + 1

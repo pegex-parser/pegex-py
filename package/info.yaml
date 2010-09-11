@@ -15,3 +15,5 @@ url: http://www.cdent.org/
 
 install_requires:
 - pyyaml
+
+scripts: []

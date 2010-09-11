@@ -15,7 +15,7 @@ class Grammar(pegex.grammar.Grammar):
                           {'+rule': 'name'},
                           {'+rule': 'punctuation', '<': '?'},
                           {'+re': '\\r?\\n'}]},
-  'name': {'+re': '[A-Z]\\w*'},
-  'nicety': {'+re': '(Hello|O HAI|Hey)'},
+  'name': {'+re': '([A-Z]\\w*)'},
+  'nicety': {'+re': '(?:Hello|O HAI|Hey)'},
   'punctuation': {'+re': '[\\.,!]'}}
 )

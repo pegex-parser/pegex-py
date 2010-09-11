@@ -9,8 +9,8 @@ greeting:
     <: '?'
   - +re: \r?\n
 name:
-  +re: '[A-Z]\w*'
+  +re: ([A-Z]\w*)
 nicety:
-  +re: (Hello|O HAI|Hey)
+  +re: (?:Hello|O HAI|Hey)
 punctuation:
   +re: '[\.,!]'

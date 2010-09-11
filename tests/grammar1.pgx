@@ -1,7 +1,7 @@
 greeting: <nicety> /<WS>/ <name> <punctuation>? /<EOL>/?
 
-nicety: /(Hello|O HAI|Hey)/
+nicety: /(?:Hello|O HAI|Hey)/
 
-name: /<UPPER><WORD>*/
+name: /(<UPPER><WORD>*)/
 
 punctuation: /[<DOT><COMMA><BANG>]/
