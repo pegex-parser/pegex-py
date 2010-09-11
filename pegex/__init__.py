@@ -15,13 +15,14 @@ class Pegex():
         self.grammar = self.init_grammar()
 
     def init_grammar(self):
-        
+        pass        
 
     def parse(self, input, top=None):
         self.position = 0
         self.input = input
         self.match(self.top_rule(top))
-        if self.position < len(self.input)
+        if self.position < len(self.input):
+            pass
         if self.receiver.__dict__.get('data'):
             return self.receiver.__dict__.get('data')
 
