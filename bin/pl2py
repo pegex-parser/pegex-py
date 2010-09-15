@@ -5,21 +5,21 @@ use strict;
 $_ = do { local $/; <> };
 
 s/sub (\w+) {/def $1():/;
-while (s/^\s+my\s+\$(\w+)\s+=\s+shift;\s*\n+//m) {
+while (s/^\s+my\s+\$(\w+)\s+=\s+shift; *\n+//m) {
     my $var = $1;
     s/(def \w+\()\):/$1$var):/ or
     s/(def \w+\(.*)\):/$1, $var):/;
 }
 
-s/^\s+\}\n//mg;
-s/;\s*$//mg;
+s/^ +\}\n//mg;
+s/; *$//mg;
 s/\$(\w+)/$1/g;
 s/->/./g;
 s/return 1/return True/g;
 s/return 0/return False/g;
 s/\((.*)\) \{/$1:/g;
-s/\s+\{\s*$/:/mg;
+s/ +\{ *$/:/mg;
 s/\.can\(/.__getattr__(/g;
-s/^\s*my\s+//mg;
+s/^ *my +//mg;
 
 print $_;

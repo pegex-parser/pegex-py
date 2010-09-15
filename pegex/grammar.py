@@ -115,7 +115,7 @@ class Grammar():
         if count and times in '+*':
             self.position = position
         result = bool(count) or (times in '?*') ^ not_
-        if result:
+        if not result:
             self.position = position
 
         if state and not not_:
@@ -180,6 +180,7 @@ class Grammar():
 Error parsing Pegex document:
   msg: %(msg)s
   line: %(line)s
-  context: "%(context)"
+  context: "%(context)s"
   position: %(position)s
 """ % locals()
+        raise Exception(formatted)
