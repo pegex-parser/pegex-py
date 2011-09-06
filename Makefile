@@ -164,7 +164,8 @@ tests:: $(ALL_TESTS)
 
 $(ALL_TESTS) $(ALL_DEV_TESTS):
 	@$(PYTHON) -c 'print " Running test: $@ ".center(70, "-") + "\n"'
-	@PYTHONPATH=. $(PYTHON) $@
+	#@PYTHONPATH=. $(PYTHON) $@
+	$(PYTHON) $@
 
 clean::
 	find . -name '*.pyc' | xargs rm

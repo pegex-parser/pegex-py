@@ -18,7 +18,8 @@ Pegex Grammar module for pegex
 
 class Grammar():
     def __init__(self):
-        self.__dict__.update(
+        self.tree = {}
+        self.tree.update(
         %(data)s
         )
 """ % locals()

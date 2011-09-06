@@ -4,6 +4,7 @@ class TestImport(TestCase):
     def test_import(self):
         import pegex
         import pegex.grammar
+        import pegex.grammar.pegex
 
         self.assertTrue(True, 'pegex modules imported cleanly')
 
