@@ -60,6 +60,7 @@ class Test(Command):
         build_cmd.run()
         sys.path.insert(0, build_cmd.build_lib)
         sys.path.insert(0, self.test_dir)
+        sys.path.insert(0, '')
         def exit(code):
             pass
         sys.exit = exit
