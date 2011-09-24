@@ -13,40 +13,48 @@ class ParseException(BaseException):
 
 #from __future__ import absolute_import
 
-import re
+import re, os, sys
 
 input_ = __import__('pegex.input', {}, {}, ['Input'])
 Input = input_.Input
 
-
 class Parser():
+
     def __init__(self, grammar=None, receiver='pegex.ast', debug=False):
+        self.indent = 0
         self.grammar = grammar
         self.receiver = receiver
+        self.throw_on_error = True
         self.debug = debug
         self.position = 0
+        self.buffer_ = ''
+        self.terminater = 0
+        self.wrap = 1
 
-    def parse(self, input, start_rule=None):
-        if isinstance(input, Input):
-            self.input = input
+    def parse(self, input_, start_rule=None):
+        if isinstance(input_, Input):
+            self.input_ = input_
         else:
-            self.input = Input(input)
+            self.input_ = Input(input_)
+        self.input_.open()
 
-        #self.buffer = self.input.read()
-        self.buffer = self.input
+        self.buffer_ = self.input_.read()
         
         if not hasattr(self.grammar, '__module__'):
             try:
-                print self.grammar
-                imported_grammar = __import__('%s' % self.grammar,
-                        {}, {}, ['Grammar'])
+                imported_grammar = __import__(
+                    '%s' % self.grammar,
+                    {}, {}, ['Grammar']
+                )
             except ImportError, err:
                 raise # XXX
             self.grammar = imported_grammar.Grammar()
 
         if not start_rule:
             try:
-                start_rule = self.grammar.tree.get('TOP', self.grammar.tree['+top'])
+                start_rule = self.grammar.tree.get(
+                    'TOP', self.grammar.tree.get('+top', None)
+                )
             except KeyError:
                 raise # XXX
 
@@ -57,15 +65,13 @@ class Parser():
             except ImportError, err:
                 raise # XXX
             self.receiver = imported_receiver.Receiver()
-
         self.receiver.parser = self
 
-        print 'SR', start_rule
         match = self.match(start_rule)
         if not match:
             return
 
-        self.input.close()
+        self.input_.close()
 
         data = self.receiver.data
         if data:
@@ -73,126 +79,201 @@ class Parser():
         return match
 
     def match(self, rule):
-        if hasattr(self.receiver, 'begin'):
-            self.receiver.begin()
+        if hasattr(self.receiver, 'initialize'):
+            self.receiver.initialize()
 
-        print 'R', rule
-        match = self.match_ref(rule)
-        if self.position < len(self.buffer_):
+        match = self.match_next({'.ref': rule})
+        if not match or self.position < len(self.buffer_):
             self.throw_error("Parse document failed for some reason")
             return
 
-        if hasattr(self.receiver, 'final'):
-            self.receiver.final()
+        match = match[0]
+
+        if hasattr(self.receiver, 'finalize'):
+            self.receiver.finalize()
+
+        if not match:
+            match = { rule: [] }
+
+        if rule == 'TOP':
+            match = match['TOP']
 
         return match
 
-    def match_next(self, next_, state=None):
+    def match_next(self, next_):
+        if '.sep' in next_:
+            return self.match_next_with_sep(next_)
 
-        has, not_, times = 0, 0, '1'
-
-        mod = next_.get('+mod', None)
-        if mod is'=':
-            has = 1
-        elif mod is '!':
-            not_ = 1
-        elif mod:
-            times = mod
-
+        quantity = next_.get('+qty', '1')
+        assertion = next_.get('+asr', 0)
         rule = kind = None
-        for kind in ['ref', 'rfx', 'all', 'any', 'err']:
+        for kind in ['ref', 'rgx', 'all', 'any', 'err']:
             key = '.%s' % kind
             if key in next_:
                 rule = next_[key]
                 break
 
-        if state and not(has or not_):
-            self.callback("try", state, None)
+        match, position, count, method = (
+            [], self.position, 0, "match_%s" % kind
+        )
 
-        match, position, count, method = ([],  self.position, 0,
-                'match_%s' % kind)
-
-        print 'M, R', method, rule
-        return_ = getattr(self, method)(rule)
-        print 'R_', return_
-        while return_:
-            if not not_:
+        return_ = getattr(self, method)(rule, parent=next_)
+        while type(return_) == list:
+            if not assertion:
                 position = self.position
             count += 1
-            if times in '1?':
-                match = return_
+            match.extend(return_)
+            if quantity in '1?':
                 break
-            if return_ != IGNORE:
-                match.append(return_)
-            return_ = getattr(self, method)(rule)
+            return_ = getattr(self, method)(rule, parent=next_)
 
-        if count and times in '+*':
+        if quantity in '+*':
+            match = [match]
             self.position = position
 
-        if count or times in '?*':
+        if count or quantity in '?*':
             result = 1
         else:
             result = 0
-        result = result ^ not_
+        if assertion == -1:
+            a = 1
+        else:
+            a =0
+        result = result ^ a
 
-        if not result:
+        if not result or assertion:
             self.position = position
 
-        if state and not(has or not_):
-            if result:
-                 got = 'got'
-            else:
-                 got = 'not'
-            self.callback(got, state, match)
-
-        if not match:
-            match = IGNORE
+        if '-skip' in next_:
+            match = []
 
         if result:
             return match
         else:
             return False
 
-    def match_ref(self, ref):
-        try:
-            return self.match_next(self.grammar.tree[ref], ref)
-        except KeyError:
-            self.throw_error("\n\n*** No grammar support for '%s'\n\n" % ref)
+    def match_next_with_sep(self, next_):
+        quantity = next_.get('+qty', '1')
+        rule = kind = None
+        for kind in ['ref', 'rgx', 'all', 'any', 'err']:
+            key = '.%s' % kind
+            if key in next_:
+                rule = next_[key]
+                break
 
-    def match_rgx(self, regexp):
+        separator = next_.get('.sep');
+        sep_rule = sep_kind = None
+        for sep_kind in ['ref', 'rgx', 'all', 'any', 'err']:
+            key = '.%s' % sep_kind
+            if key in separator:
+                sep_rule = separator[key]
+                break
+
+        match, position, count, sep_count, method, sep_method = (
+            [], self.position, 0, 0,
+            "match_%s" % kind, "match_%s" % sep_kind
+        )
+
+        return_ = getattr(self, method)(rule, next_)
+        while type(return_) == list:
+            position = self.position
+            count += 1
+            match.extend(return_)
+            return_ = getattr(self, sep_method)(sep_rule, separator)
+            if type(return_) != list:
+                break
+            match.extend(return_)
+            sep_count += 1
+            return_ = getattr(self, method)(rule, next_)
+
+        if not count:
+            if quantity is '?':
+                return [match]
+            else:
+                return False
+
+        if count == sep_count:
+            self.position = position
+
+        if next_.get('-skip', None):
+            return []
+
+        return [match]
+
+    def match_ref(self, ref, parent):
+        rule = self.grammar.tree.get(ref, None)
+        if not rule:
+            raise "\n\n*** No grammar support for '%s'\n\n" % ref
+
+        trace = bool(not('+asr' in rule) and self.debug)
+        if trace:
+            self.trace("try_%s" % ref)
+
+        match = self.match_next(rule)
+        if type(match) != list:
+            if trace:
+                self.trace("not_%s" % ref)
+            return False
+
+        # Call receiver callbacks
+        if trace:
+            self.trace("got_%s" % ref)
+        if not('+asr' in rule) and not('-skip' in parent):
+            callback = "got_%s" % ref
+            try:
+                sub = getattr(self.receiver, callback)
+            except AttributeError:
+                sub = None
+            if (sub):
+                match = [ sub(match[0]) ]
+            elif (self.wrap and not('-pass' in parent)) or '-wrap' in parent:
+                if match:
+                    match = [ { ref: match[0] } ]
+                else:
+                    match = []
+
+        return match
+
+
+    def match_rgx(self, regexp, parent=None):
         start = self.position
+        self.terminater += 1
+        if start >= len(self.buffer_) and self.terminater > 1000:
+            raise Exception(
+                "Your grammar seems to not terminate at end of stream"
+            )
+
         m = re.match(regexp, self.buffer_[start:])
         if not m:
             return False
         self.position += m.end()
 
-        match = {}
-        index = 1
-        for group in m.groups():
-            match[index] = group
+        match = []
+        match.extend(m.groups())
+        if len(match) > 1:
+            match = [match]
 
-        return match;
+        return match
 
-    def match_all(self, list_):
+    def match_all(self, list_, parent=None):
         pos = self.position
         set_ = []
+        len_ = 0
 
         for elem in list_:
             match = self.match_next(elem)
-            if match:
-                if match is not IGNORE:
-                    set_.append(match)
+            if type(match) == list:
+                set_.extend(match)
+                len_ += 1
             else:
                 self.position = pos
                 return False
 
-        if len(list_) == 1:
-            return set[0]
-        else:
-            return set
+        if len_ > 1:
+            set_ = [set_]
+        return set_
 
-
-    def match_any(self, list_):
+    def match_any(self, list_, parent=None):
 
         for elem in list_:
             match = self.match_next(elem)
@@ -200,68 +281,48 @@ class Parser():
                 return match
         return False
 
-    def match_err(self, error):
+    def match_err(self, error, parent=None):
         self.throw_error(error)
 
-    def callback(self, adj, rule, match):
-        callback = '%s_%s' % (adj, rule)
-        if self.debug:
-            self.trace(callback)
-        if adj is 'got':
-            if hasattr(self.receiver, 'got'):
-                match = self.receiver.got(rule, match)
-            if hasattr(self.receiver, callback):
-                match = getattr(self.receiver,
-                        callback)(self.reciever, match)
-            return match
-        return 
-
     def trace(self, action):
-        print action
-    """
-    sub trace {
-        my $self = shift;
-        my $action = shift;
-        my $indent = ($action =~ /^try_/) ? 1 : 0;
-        $self->{indent} ||= 0;
-        $self->{indent}-- unless $indent;
-        print STDERR ' ' x $self->{indent};
-        $self->{indent}++ if $indent;
-        my $snippet = substr($self->buffer, $self->position);
-        $snippet = substr($snippet, 0, 30) . "..." if length $snippet > 30;
-        $snippet =~ s/\n/\\n/g;
-        print STDERR sprintf("%-30s", $action) . ($indent ? " >$snippet<\n" : "\n");
-    }
-    """
+        if action.startswith('try_'):
+            indent = 1
+        else:
+            indent = 0
+        if not indent:
+            self.indent -= 1
+        # print STDERR ' ' x $self->{indent};
+        print ' ' * self.indent,
+        if indent:
+            self.indent += 1
+        snippet = self.buffer_[self.position:]
+        if len(snippet) > 30:
+            snippet = snippet[0:30]
+        snippet = snippet.replace('\n', '\\n')
+        # print STDERR sprintf("%-30s", $action) . ($indent ? " >$snippet<\n" : "\n");
+        print "%-30s" % action,
+        if indent:
+            print " >%s<" % snippet
+        else:
+            print ""
+        # print STDERR sprintf("%-30s", $action) . ($indent ? " >$snippet<\n" : "\n");
 
     def throw_error(self, msg):
-        raise ParseException(msg)
-    """
-    sub throw_error {
-        my $self = shift;
-        my $msg = shift;
-        my $line = @{[substr($self->buffer, 0, $self->position) =~ /(\n)/g]} + 1;
-        my $context = substr($self->buffer, $self->position, 50);
-        $context =~ s/\n/\\n/g;
-        my $position = $self->position;
-        my $error = <<"...";
-    Error parsing Pegex document:
-      msg: $msg
-      line: $line
-      context: "$context"
-      position: $position
-    ...
-        if ($self->error eq 'die') {
-            require Carp;
-            Carp::croak($error);
-        }
-        elsif ($self->error eq 'live') {
-            $@ = $error;
-            return;
-        }
-        else {
-            die "Invalid value for Pegex::Parser::error";
-        }
-    }
-    """
+        line = self.buffer_[0:self.position].count('\n') + 1
+        column = self.position - self.buffer_.rfind("\n", 0, self.position)
+        context = self.buffer_[self.position:50].replace('\n', '\\n')
+        position = self.position
+        error = """\
+Error parsing Pegex document:
+  msg: %(msg)s
+  line: %(line)s
+  column: %(column)s
+  context: "%(context)s"
+  position: %(position)s
+...
+""" % locals()
+        if self.throw_on_error:
+            raise Exception(error)
+        self.error = error
+        return False
 
